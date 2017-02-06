@@ -1,0 +1,28 @@
+{
+  "name": "daily-elm-meditation",
+  "version": "1.0.0",
+  "description": "Random numbers, probably http requests and Making Impossible States Impossible.",
+  "main": "webpack.config.js",
+  "scripts": {
+    "start": "electron main.js",
+    "build": "webpack",
+    "dev": "concurrently --kill-others \"webpack-dev-server --content-base /dist\" \"npm start\"",
+    "version": "webpack --version",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "elm",
+    "electron",
+    "webpack",
+    "mdl"
+  ],
+  "author": "micah",
+  "license": "ISC",
+  "dependencies": {
+    "concurrently": "^3.1.0",
+    "electron": "^1.4.15",
+    "elm-webpack-loader": "^4.2.0",
+    "webpack": "^2.2.1",
+    "webpack-dev-server": "^2.3.0"
+  }
+}
