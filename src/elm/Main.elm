@@ -2,11 +2,13 @@ module Main exposing (..)
 
 import Html exposing (Html, text, div, h1, h2)
 import Html.Attributes exposing (style)
-import Json.Decode as Decode
 import Http
 import Task
 import Random
 import Material
+import Material.Chip as Chip
+import Material.Color
+import Material.Options
 import Material.Scheme
 import Material.Layout as Layout
 
@@ -121,7 +123,45 @@ header =
 
 viewBody : Model -> Html Msg
 viewBody model =
-    div [] [ text <| toString model.correct ]
+    div [] (List.map peg model.correct)
+
+
+peg : Color -> Html Msg
+peg color =
+    let
+        materialColor =
+            Material.Color.color (colorToMDLColor color) Material.Color.S500
+    in
+        Chip.span
+            [ Material.Color.background materialColor
+            , Material.Color.text materialColor
+            , Material.Options.css "margin" "1rem"
+            ]
+            [ Chip.content []
+                [ text "O" ]
+            ]
+
+
+colorToMDLColor : Color -> Material.Color.Hue
+colorToMDLColor color =
+    case color of
+        Red ->
+            Material.Color.Red
+
+        Green ->
+            Material.Color.Green
+
+        Blue ->
+            Material.Color.Blue
+
+        Cyan ->
+            Material.Color.Cyan
+
+        Yellow ->
+            Material.Color.Yellow
+
+        Empty ->
+            Material.Color.Grey
 
 
 
