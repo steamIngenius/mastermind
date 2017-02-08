@@ -2,6 +2,10 @@ module Main exposing (..)
 
 import Html exposing (Html, text, div, h1, h2)
 import Html.Attributes exposing (style)
+import Json.Decode as Decode
+import Http
+import Task
+import Random
 import Material
 import Material.Scheme
 import Material.Layout as Layout
@@ -21,24 +25,76 @@ main =
 -- Types
 
 
-type Msg
-    = NoOp
-    | Mdl (Material.Msg Msg)
+type Color
+    = Red
+    | Green
+    | Blue
+    | Cyan
+    | Yellow
+    | Empty
+
+
+type alias Combination =
+    List Color
+
+
+type Hint
+    = CorrectPosition
+    | WrongPosition
+
+
+type alias Guess =
+    ( Combination, List Hint )
+
+
+type alias Index =
+    Int
+
+
+type GameState
+    = Playing Combination (Maybe Index)
+    | GameOver
+    | Surrender
 
 
 
 -- Model
 
 
+guessSize : Int
+guessSize =
+    4
+
+
+colors : List Color
+colors =
+    [ Red, Green, Blue, Cyan, Yellow ]
+
+
+emptyCombination : Combination
+emptyCombination =
+    List.repeat guessSize Empty
+
+
 type alias Model =
-    { state : Int
+    { correct : Combination
+    , guesses : List Guess
+    , state : GameState
     , mdl : Material.Model
     }
 
 
 createModel : ( Model, Cmd Msg )
 createModel =
-    Model 0 Material.model ! []
+    let
+        startingState =
+            Playing emptyCombination Nothing
+
+        guesses =
+            []
+    in
+        Model emptyCombination guesses startingState Material.model
+            ! [ randomListFromWeb ShuffleWeb (guessSize * guessSize) ]
 
 
 
@@ -65,11 +121,18 @@ header =
 
 viewBody : Model -> Html Msg
 viewBody model =
-    div [] [ text "This is the body" ]
+    div [] [ text <| toString model.correct ]
 
 
 
 -- Update
+
+
+type Msg
+    = NoOp
+    | Mdl (Material.Msg Msg)
+    | Shuffle (List Int)
+    | ShuffleWeb (Result Http.Error (List Int))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -80,3 +143,67 @@ update msg model =
 
         Mdl msg_ ->
             Material.update Mdl msg_ model
+
+        Shuffle random ->
+            { model
+                | correct = randomCombination guessSize colors random
+            }
+                ! []
+
+        ShuffleWeb (Ok random) ->
+            { model
+                | correct = randomCombination guessSize colors random
+            }
+                ! []
+
+        ShuffleWeb (Err err) ->
+            let
+                _ =
+                    Debug.log "Error! - " err
+            in
+                model ! []
+
+
+randomList : (List Int -> Msg) -> Int -> Cmd Msg
+randomList msg len =
+    Random.int 0 100
+        |> Random.list len
+        |> Random.generate msg
+
+
+randomListFromWeb : (Result Http.Error (List Int) -> Msg) -> Int -> Cmd Msg
+randomListFromWeb msg len =
+    let
+        url =
+            "https://www.random.org/integers/?num="
+                ++ toString len
+                ++ "&min=1&max=100&col=1&base=10&format=plain&rnd=new"
+
+        parser =
+            String.split "\n"
+                >> List.map String.toInt
+                >> List.filterMap Result.toMaybe
+
+        request =
+            Http.getString url
+    in
+        request
+            |> Http.toTask
+            |> Task.map parser
+            |> Task.attempt msg
+
+
+shuffle : List comparable -> List a -> List a
+shuffle random list =
+    List.map2 (,) list random
+        |> List.sortBy Tuple.second
+        |> List.unzip
+        |> Tuple.first
+
+
+randomCombination : Int -> List a -> List comparable -> List a
+randomCombination size xs random =
+    List.map (List.repeat size) xs
+        |> List.concat
+        |> shuffle random
+        |> List.take size
