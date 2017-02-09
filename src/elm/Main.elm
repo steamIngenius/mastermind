@@ -10,6 +10,7 @@ import Material.Color
 import Material.Options
 import Material.Scheme
 import Material.Chip as Chip
+import Material.Menu as Menu
 import Material.Elevation as Elevation
 import Material.Layout as Layout
 
@@ -126,43 +127,58 @@ header =
 
 viewBody : Model -> Html Msg
 viewBody model =
+    case model.state of
+        Playing current (Just hoverIndex) ->
+            playBody hoverIndex current model
+
+        Playing current Nothing ->
+            playBody -1 current model
+
+        _ ->
+            text "I don't know any other state"
+
+
+playBody : Int -> Combination -> Model -> Html Msg
+playBody hoverIndex current model =
     div []
         [ div [] <|
-            List.map (peg model) <|
+            List.map (peg model hoverIndex) <|
                 List.indexedMap (,) model.correct
+        , br [] []
+        , div [] <|
+            List.map (peg model hoverIndex) <|
+                List.indexedMap (,) current
         ]
 
 
-peg : Model -> ( Index, Color ) -> Html Msg
-peg model ( index, color ) =
+peg : Model -> Index -> ( Index, Color ) -> Html Msg
+peg model raised ( index, color ) =
     let
         materialColor =
             Material.Color.color (colorToMDLColor color) Material.Color.S500
     in
-        Chip.span
+        Menu.render Mdl
+            [ index ]
+            model.mdl
             [ Material.Color.background materialColor
             , Material.Color.text materialColor
             , Material.Options.css "margin" "1rem"
-            , raisedState index model
+            , Material.Options.css "width" "33px"
+            , Material.Options.css "border-radius" "1.5rem"
+            , if index == raised then
+                Elevation.e8
+              else
+                Elevation.e2
             , Elevation.transition 300
             , Material.Options.onMouseEnter (Raise index)
             , Material.Options.onMouseLeave (Raise -1)
+            , Menu.bottomLeft
+            , Menu.ripple
             ]
-            [ Chip.content []
-                [ text "O" ]
+            [ Menu.item
+                [ Menu.onSelect NoOp ]
+                [ text "some item" ]
             ]
-
-
-raisedState index model =
-    case model.state of
-        Playing _ (Just raise) ->
-            if raise == index then
-                Elevation.e8
-            else
-                Elevation.e2
-
-        _ ->
-            Elevation.e2
 
 
 colorToMDLColor : Color -> Material.Color.Hue
@@ -228,15 +244,20 @@ update msg model =
                 model ! []
 
         Raise index ->
-            case model.state of
-                Playing current _ ->
-                    { model
-                        | state = Playing current (Just index)
-                    }
-                        ! []
+            updateHoverIndex index model
 
-                _ ->
-                    model ! []
+
+updateHoverIndex : Int -> Model -> ( Model, Cmd Msg )
+updateHoverIndex index model =
+    case model.state of
+        Playing current _ ->
+            { model
+                | state = Playing current (Just index)
+            }
+                ! []
+
+        _ ->
+            model ! []
 
 
 randomList : (List Int -> Msg) -> Int -> Cmd Msg
