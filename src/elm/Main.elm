@@ -1,15 +1,16 @@
 module Main exposing (..)
 
-import Html exposing (Html, text, div, h1, h2)
+import Html exposing (Html, text, div, h1, br)
 import Html.Attributes exposing (style)
 import Http
 import Task
 import Random
 import Material
-import Material.Chip as Chip
 import Material.Color
 import Material.Options
 import Material.Scheme
+import Material.Chip as Chip
+import Material.Elevation as Elevation
 import Material.Layout as Layout
 
 
@@ -96,7 +97,7 @@ createModel =
             []
     in
         Model emptyCombination guesses startingState Material.model
-            ! [ randomListFromWeb ShuffleWeb (guessSize * guessSize) ]
+            ! [ randomList Shuffle (guessSize * guessSize) ]
 
 
 
@@ -118,16 +119,22 @@ view model =
 
 header : Html Msg
 header =
-    h1 [ style [ ( "padding", "2rem" ) ] ] [ text "Mastermind" ]
+    div [ style [ ( "padding", "1rem" ) ] ]
+        [ h1 [] [ text "Mastermind" ]
+        ]
 
 
 viewBody : Model -> Html Msg
 viewBody model =
-    div [] (List.map peg model.correct)
+    div []
+        [ div [] <|
+            List.map (peg model) <|
+                List.indexedMap (,) model.correct
+        ]
 
 
-peg : Color -> Html Msg
-peg color =
+peg : Model -> ( Index, Color ) -> Html Msg
+peg model ( index, color ) =
     let
         materialColor =
             Material.Color.color (colorToMDLColor color) Material.Color.S500
@@ -136,10 +143,26 @@ peg color =
             [ Material.Color.background materialColor
             , Material.Color.text materialColor
             , Material.Options.css "margin" "1rem"
+            , raisedState index model
+            , Elevation.transition 300
+            , Material.Options.onMouseEnter (Raise index)
+            , Material.Options.onMouseLeave (Raise -1)
             ]
             [ Chip.content []
                 [ text "O" ]
             ]
+
+
+raisedState index model =
+    case model.state of
+        Playing _ (Just raise) ->
+            if raise == index then
+                Elevation.e8
+            else
+                Elevation.e2
+
+        _ ->
+            Elevation.e2
 
 
 colorToMDLColor : Color -> Material.Color.Hue
@@ -173,6 +196,7 @@ type Msg
     | Mdl (Material.Msg Msg)
     | Shuffle (List Int)
     | ShuffleWeb (Result Http.Error (List Int))
+    | Raise Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -202,6 +226,17 @@ update msg model =
                     Debug.log "Error! - " err
             in
                 model ! []
+
+        Raise index ->
+            case model.state of
+                Playing current _ ->
+                    { model
+                        | state = Playing current (Just index)
+                    }
+                        ! []
+
+                _ ->
+                    model ! []
 
 
 randomList : (List Int -> Msg) -> Int -> Cmd Msg
