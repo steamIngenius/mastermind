@@ -1,16 +1,19 @@
 module Main exposing (..)
 
-import Html exposing (Html, text, div, h1, br)
-import Html.Attributes exposing (style)
+import Html exposing (Html, Attribute, text, div, h1, br)
+import Html.Attributes exposing (style, attribute, draggable)
+import Html.Events exposing (onWithOptions)
 import Http
+import Json.Decode as Decode
 import Task
 import Random
 import Material
 import Material.Color
-import Material.Options
 import Material.Scheme
+import Material.Options as Options
 import Material.Chip as Chip
 import Material.Menu as Menu
+import Material.Grid as Grid
 import Material.Elevation as Elevation
 import Material.Layout as Layout
 
@@ -56,9 +59,15 @@ type alias Index =
 
 
 type GameState
-    = Playing Combination (Maybe Index)
+    = Playing Combination
     | GameOver
     | Surrender
+
+
+type PegType
+    = Draggable
+    | Droppable
+    | NoAction
 
 
 
@@ -84,6 +93,8 @@ type alias Model =
     { correct : Combination
     , guesses : List Guess
     , state : GameState
+    , hoverIndex : Index
+    , dragging : Maybe Color
     , mdl : Material.Model
     }
 
@@ -92,12 +103,12 @@ createModel : ( Model, Cmd Msg )
 createModel =
     let
         startingState =
-            Playing emptyCombination Nothing
+            Playing emptyCombination
 
         guesses =
             []
     in
-        Model emptyCombination guesses startingState Material.model
+        Model emptyCombination guesses startingState -1 Nothing Material.model
             ! [ randomList Shuffle (guessSize * guessSize) ]
 
 
@@ -120,7 +131,7 @@ view model =
 
 header : Html Msg
 header =
-    div [ style [ ( "padding", "1rem" ) ] ]
+    div [ style [ ( "padding", "1rem" ), ( "text-align", "center" ) ] ]
         [ h1 [] [ text "Mastermind" ]
         ]
 
@@ -128,57 +139,84 @@ header =
 viewBody : Model -> Html Msg
 viewBody model =
     case model.state of
-        Playing current (Just hoverIndex) ->
-            playBody hoverIndex current model
-
-        Playing current Nothing ->
-            playBody -1 current model
+        Playing current ->
+            playBody current model
 
         _ ->
-            text "I don't know any other state"
+            text "I don't know any other states yet"
 
 
-playBody : Int -> Combination -> Model -> Html Msg
-playBody hoverIndex current model =
-    div []
-        [ div [] <|
-            List.map (peg model hoverIndex) <|
-                List.indexedMap (,) model.correct
-        , br [] []
-        , div [] <|
-            List.map (peg model hoverIndex) <|
-                List.indexedMap (,) current
+playBody : Combination -> Model -> Html Msg
+playBody current model =
+    Grid.grid []
+        [ colorPicker model
+        , currentGuess current model
         ]
 
 
-peg : Model -> Index -> ( Index, Color ) -> Html Msg
-peg model raised ( index, color ) =
+currentGuess : Combination -> Model -> Grid.Cell Msg
+currentGuess current model =
+    Grid.cell
+        [ Grid.size Grid.All 4 ]
+    <|
+        List.indexedMap (peg Droppable -1) current
+
+
+colorPicker : Model -> Grid.Cell Msg
+colorPicker model =
+    Grid.cell
+        [ Grid.size Grid.All 1 ]
+    <|
+        List.indexedMap (peg Draggable model.hoverIndex) colors
+
+
+peg : PegType -> Index -> Index -> Color -> Html Msg
+peg pegType hoverIndex index color =
     let
-        materialColor =
-            Material.Color.color (colorToMDLColor color) Material.Color.S500
+        mdlColor =
+            Material.Color.color (colorToMDLColor color) Material.Color.S400
     in
-        Menu.render Mdl
-            [ index ]
-            model.mdl
-            [ Material.Color.background materialColor
-            , Material.Color.text materialColor
-            , Material.Options.css "margin" "1rem"
-            , Material.Options.css "width" "33px"
-            , Material.Options.css "border-radius" "1.5rem"
-            , if index == raised then
-                Elevation.e8
-              else
-                Elevation.e2
-            , Elevation.transition 300
-            , Material.Options.onMouseEnter (Raise index)
-            , Material.Options.onMouseLeave (Raise -1)
-            , Menu.bottomLeft
-            , Menu.ripple
-            ]
-            [ Menu.item
-                [ Menu.onSelect NoOp ]
-                [ text "some item" ]
-            ]
+        case pegType of
+            Draggable ->
+                Chip.span
+                    [ Options.attribute <| draggable "true"
+                    , onDragStart (Dragging color)
+                    , Material.Color.background mdlColor
+                    , Options.css "height" "33px"
+                    , Options.css "width" "9px"
+                    , Options.css "border-radius" "1.5rem"
+                    , Options.css "margin" "8"
+                    , if index == hoverIndex then
+                        Elevation.e8
+                      else
+                        Elevation.e2
+                    , Elevation.transition 300
+                    , Options.onMouseEnter (Raise index)
+                    , Options.onMouseLeave (Raise -1)
+                    ]
+                    []
+
+            Droppable ->
+                Chip.span
+                    [ Options.attribute <| attribute "ondragover" "return false"
+                    , onDrop (DroppedOn index)
+                    , Material.Color.background mdlColor
+                    , Options.css "height" "33px"
+                    , Options.css "width" "9px"
+                    , Options.css "border-radius" "1.5rem"
+                    , Options.css "margin" "8"
+                    ]
+                    []
+
+            NoAction ->
+                Chip.span [] []
+
+
+renderMenuItem : Color -> Menu.Item Msg
+renderMenuItem color =
+    Menu.item
+        [ Menu.onSelect NoOp ]
+        [ text <| toString color ]
 
 
 colorToMDLColor : Color -> Material.Color.Hue
@@ -212,6 +250,8 @@ type Msg
     | Mdl (Material.Msg Msg)
     | Shuffle (List Int)
     | ShuffleWeb (Result Http.Error (List Int))
+    | Dragging Color
+    | DroppedOn Index
     | Raise Int
 
 
@@ -244,20 +284,30 @@ update msg model =
                 model ! []
 
         Raise index ->
-            updateHoverIndex index model
+            updateHoverIndex index model ! []
+
+        -- TODO Drag and Drop
+        Dragging color ->
+            let
+                _ =
+                    Debug.log "Dragging a " color
+            in
+                { model | dragging = Just color } ! []
+
+        -- TODO Drag and Drop
+        DroppedOn index ->
+            let
+                _ =
+                    Debug.log "Dropped on a " index
+            in
+                model ! []
 
 
-updateHoverIndex : Int -> Model -> ( Model, Cmd Msg )
+updateHoverIndex : Int -> Model -> Model
 updateHoverIndex index model =
-    case model.state of
-        Playing current _ ->
-            { model
-                | state = Playing current (Just index)
-            }
-                ! []
-
-        _ ->
-            model ! []
+    { model
+        | hoverIndex = index
+    }
 
 
 randomList : (List Int -> Msg) -> Int -> Cmd Msg
@@ -303,3 +353,41 @@ randomCombination size xs random =
         |> List.concat
         |> shuffle random
         |> List.take size
+
+
+onDragStart : msg -> Options.Property c msg
+onDragStart message =
+    onDragHelper "dragstart" message
+
+
+
+-- when another dragged element is dropped over this element
+
+
+onDrop : msg -> Options.Property c msg
+onDrop message =
+    onPreventHelper "drop" message
+
+
+
+-- helpers
+
+
+onDragHelper : String -> msg -> Options.Property c msg
+onDragHelper eventName message =
+    Options.onWithOptions
+        eventName
+        { preventDefault = False
+        , stopPropagation = False
+        }
+        (Decode.succeed message)
+
+
+onPreventHelper : String -> msg -> Options.Property c msg
+onPreventHelper eventName message =
+    Options.onWithOptions
+        eventName
+        { preventDefault = True
+        , stopPropagation = False
+        }
+        (Decode.succeed message)
