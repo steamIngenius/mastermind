@@ -14,6 +14,8 @@ import Material.Options as Options
 import Material.Chip as Chip
 import Material.Menu as Menu
 import Material.Grid as Grid
+import Material.Button as Button
+import Material.Icon as Icon
 import Material.Elevation as Elevation
 import Material.Layout as Layout
 
@@ -148,18 +150,71 @@ viewBody model =
 
 playBody : Combination -> Model -> Html Msg
 playBody current model =
-    Grid.grid []
+    Grid.grid
+        [ Options.css "display" "flex"
+        , Options.css "flex-direction" "row"
+        , Options.css "justify-content" "space-around"
+        ]
         [ colorPicker model
-        , currentGuess current model
+        , guessField current model
         ]
 
 
-currentGuess : Combination -> Model -> Grid.Cell Msg
-currentGuess current model =
-    Grid.cell
-        [ Grid.size Grid.All 4 ]
-    <|
-        List.indexedMap (peg Droppable -1) current
+submitButton : Model -> Html Msg
+submitButton model =
+    let
+        mdlColor =
+            Material.Color.color Material.Color.Green Material.Color.S400
+    in
+        Button.render Mdl
+            [ 0 ]
+            model.mdl
+            [ Material.Color.background mdlColor
+            , Button.fab
+            , Button.ripple
+            , if not (validCurrentGuess model) then
+                Button.disabled
+              else
+                Button.colored
+            , Options.css "vertical-align" "top"
+            , Options.css "margin-left" "10px"
+            , Options.onClick SubmitGuess
+            ]
+            [ Icon.i "swap_horiz" ]
+
+
+validCurrentGuess : Model -> Bool
+validCurrentGuess model =
+    case model.state of
+        Playing currentGuess ->
+            let
+                empties =
+                    List.filter (\x -> x == Empty) currentGuess
+            in
+                if List.length empties > 0 then
+                    False
+                else
+                    True
+
+        _ ->
+            False
+
+
+guessField : Combination -> Model -> Grid.Cell Msg
+guessField current model =
+    let
+        pegs =
+            List.indexedMap (peg Droppable -1) current
+
+        guessArea =
+            submitButton model
+                :: pegs
+                |> List.foldl (::) []
+    in
+        Grid.cell
+            [ Grid.size Grid.All 6 ]
+        <|
+            guessArea
 
 
 colorPicker : Model -> Grid.Cell Msg
@@ -187,7 +242,7 @@ peg pegType hoverIndex index color =
                     , Options.css "border-radius" "1.5rem"
                     , Options.css "margin" "8"
                     , if index == hoverIndex then
-                        Elevation.e8
+                        Elevation.e16
                       else
                         Elevation.e2
                     , Elevation.transition 300
@@ -253,6 +308,7 @@ type Msg
     | Dragging Color
     | DroppedOn Index
     | Raise Int
+    | SubmitGuess
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -286,7 +342,6 @@ update msg model =
         Raise index ->
             updateHoverIndex index model ! []
 
-        -- TODO Drag and Drop
         Dragging color ->
             let
                 _ =
@@ -294,13 +349,32 @@ update msg model =
             in
                 { model | dragging = Just color } ! []
 
-        -- TODO Drag and Drop
         DroppedOn index ->
             let
                 _ =
                     Debug.log "Dropped on index " index
             in
                 updateCurrentGuess index model ! []
+
+        SubmitGuess ->
+            -- TODO: Refactor this ugly mess
+            case model.state of
+                Playing currentGuess ->
+                    let
+                        _ =
+                            Debug.log "Submitting guess for evaluation" currentGuess
+
+                        guesses =
+                            ( currentGuess, [] ) :: model.guesses
+                    in
+                        { model
+                            | guesses = guesses
+                            , state = Playing emptyCombination
+                        }
+                            ! []
+
+                _ ->
+                    model ! []
 
 
 updateCurrentGuess : Index -> Model -> Model
@@ -325,9 +399,7 @@ updateCurrentGuess index model =
 
 updateHoverIndex : Int -> Model -> Model
 updateHoverIndex index model =
-    { model
-        | hoverIndex = index
-    }
+    { model | hoverIndex = index }
 
 
 randomList : (List Int -> Msg) -> Int -> Cmd Msg
