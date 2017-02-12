@@ -74,6 +74,16 @@ type PegType
 -- Model
 
 
+type alias Model =
+    { correct : Combination
+    , guesses : List Guess
+    , state : GameState
+    , hoverIndex : Index
+    , dragging : Maybe Color
+    , mdl : Material.Model
+    }
+
+
 guessSize : Int
 guessSize =
     4
@@ -87,16 +97,6 @@ colors =
 emptyCombination : Combination
 emptyCombination =
     List.repeat guessSize Empty
-
-
-type alias Model =
-    { correct : Combination
-    , guesses : List Guess
-    , state : GameState
-    , hoverIndex : Index
-    , dragging : Maybe Color
-    , mdl : Material.Model
-    }
 
 
 createModel : ( Model, Cmd Msg )
@@ -298,9 +298,29 @@ update msg model =
         DroppedOn index ->
             let
                 _ =
-                    Debug.log "Dropped on a " index
+                    Debug.log "Dropped on index " index
             in
-                model ! []
+                updateCurrentGuess index model ! []
+
+
+updateCurrentGuess : Index -> Model -> Model
+updateCurrentGuess index model =
+    case model.state of
+        Playing currentGuess ->
+            let
+                updateGuess i c =
+                    if i == index then
+                        Maybe.withDefault Empty model.dragging
+                    else
+                        c
+
+                newGuess =
+                    List.indexedMap updateGuess currentGuess
+            in
+                { model | state = Playing newGuess }
+
+        _ ->
+            model
 
 
 updateHoverIndex : Int -> Model -> Model
