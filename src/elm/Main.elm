@@ -2,7 +2,7 @@ module Main exposing (..)
 
 import Html exposing (Html, Attribute, text, div, h1, br)
 import Html.Attributes exposing (style, attribute, draggable)
-import Html.Events exposing (onWithOptions)
+import Html.Events exposing (onWithOptions, onClick)
 import Http
 import Json.Decode as Decode
 import Task
@@ -134,7 +134,7 @@ view model =
 header : Html Msg
 header =
     div [ style [ ( "padding", "1rem" ), ( "text-align", "center" ) ] ]
-        [ h1 [] [ text "Mastermind" ]
+        [ h1 [ onClick Cheat ] [ text "mastermind" ]
         ]
 
 
@@ -143,6 +143,12 @@ viewBody model =
     case model.state of
         Playing current ->
             playBody current model
+
+        GameOver ->
+            div []
+                [ text "YOU WIN!!"
+                , playBody emptyCombination model
+                ]
 
         _ ->
             text "I don't know any other states yet"
@@ -153,34 +159,40 @@ playBody current model =
     Grid.grid
         [ Options.css "display" "flex"
         , Options.css "flex-direction" "row"
-        , Options.css "justify-content" "space-around"
+          -- , Options.css "justify-content" "center"
         ]
         [ colorPicker model
         , guessField current model
+        , submitButton model
         ]
 
 
-submitButton : Model -> Html Msg
+submitButton : Model -> Grid.Cell Msg
 submitButton model =
     let
         mdlColor =
-            Material.Color.color Material.Color.Green Material.Color.S400
+            Material.Color.color Material.Color.Green Material.Color.S500
     in
-        Button.render Mdl
-            [ 0 ]
-            model.mdl
-            [ Material.Color.background mdlColor
-            , Button.fab
-            , Button.ripple
-            , if not (validCurrentGuess model) then
-                Button.disabled
-              else
-                Button.colored
-            , Options.css "vertical-align" "top"
-            , Options.css "margin-left" "10px"
-            , Options.onClick SubmitGuess
+        Grid.cell
+            [ Grid.size Grid.All 1
+            , Options.css "margin-left" "0px"
+              -- , Options.css "display" "flex"
+              -- , Options.css "justify-content" "space-around"
             ]
-            [ Icon.i "swap_horiz" ]
+            [ Button.render Mdl
+                [ 0 ]
+                model.mdl
+                [ Material.Color.background mdlColor
+                , Button.fab
+                , Button.ripple
+                , if not (validCurrentGuess model) then
+                    Button.disabled
+                  else
+                    Button.colored
+                , Options.onClick SubmitGuess
+                ]
+                [ Icon.i "swap_horiz" ]
+            ]
 
 
 validCurrentGuess : Model -> Bool
@@ -203,24 +215,47 @@ validCurrentGuess model =
 guessField : Combination -> Model -> Grid.Cell Msg
 guessField current model =
     let
-        pegs =
+        currentGuess =
             List.indexedMap (peg Droppable -1) current
 
-        guessArea =
-            submitButton model
-                :: pegs
-                |> List.foldl (::) []
+        pastGuesses =
+            List.map renderPastGuess model.guesses
     in
         Grid.cell
             [ Grid.size Grid.All 6 ]
-        <|
-            guessArea
+            [ div [] <| currentGuess
+            , div [] <| pastGuesses
+            ]
+
+
+renderPastGuess : Guess -> Html Msg
+renderPastGuess ( guess, hint ) =
+    let
+        pegs =
+            List.indexedMap (peg NoAction -1) guess
+    in
+        List.map renderHint hint
+            |> (::) (Icon.i "keyboard_arrow_right")
+            |> List.append pegs
+            |> div []
+
+
+renderHint : Hint -> Html Msg
+renderHint hint =
+    case hint of
+        CorrectPosition ->
+            Icon.i "vpn_key"
+
+        WrongPosition ->
+            Icon.i "lock"
 
 
 colorPicker : Model -> Grid.Cell Msg
 colorPicker model =
     Grid.cell
-        [ Grid.size Grid.All 1 ]
+        [ Grid.size Grid.All 1
+        , Options.css "align-self" "flex-end"
+        ]
     <|
         List.indexedMap (peg Draggable model.hoverIndex) colors
 
@@ -229,7 +264,7 @@ peg : PegType -> Index -> Index -> Color -> Html Msg
 peg pegType hoverIndex index color =
     let
         mdlColor =
-            Material.Color.color (colorToMDLColor color) Material.Color.S400
+            Material.Color.color (colorToMDLColor color) Material.Color.S300
     in
         case pegType of
             Draggable ->
@@ -264,7 +299,14 @@ peg pegType hoverIndex index color =
                     []
 
             NoAction ->
-                Chip.span [] []
+                Chip.span
+                    [ Material.Color.background mdlColor
+                    , Options.css "height" "33px"
+                    , Options.css "width" "9px"
+                    , Options.css "border-radius" "1.5rem"
+                    , Options.css "margin" "8"
+                    ]
+                    []
 
 
 renderMenuItem : Color -> Menu.Item Msg
@@ -293,7 +335,7 @@ colorToMDLColor color =
             Material.Color.Yellow
 
         Empty ->
-            Material.Color.Grey
+            Material.Color.BlueGrey
 
 
 
@@ -309,6 +351,7 @@ type Msg
     | DroppedOn Index
     | Raise Int
     | SubmitGuess
+    | Cheat
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -364,17 +407,48 @@ update msg model =
                         _ =
                             Debug.log "Submitting guess for evaluation" currentGuess
 
-                        guesses =
-                            ( currentGuess, [] ) :: model.guesses
+                        win =
+                            currentGuess == model.correct
+
+                        keys =
+                            List.map2 (,) currentGuess model.correct
+                                |> List.filter (\( a, b ) -> a == b)
+                                |> List.length
+
+                        locks =
+                            List.filter (\a -> List.member a model.correct) currentGuess
+                                |> List.length
+                                |> flip (-) keys
+                                |> flip List.repeat WrongPosition
+
+                        hint =
+                            List.append (List.repeat keys CorrectPosition) locks
+
+                        newGuesses =
+                            ( currentGuess, hint ) :: model.guesses
                     in
-                        { model
-                            | guesses = guesses
-                            , state = Playing emptyCombination
-                        }
-                            ! []
+                        if win then
+                            { model
+                                | guesses = newGuesses
+                                , state = GameOver
+                            }
+                                ! []
+                        else
+                            { model
+                                | guesses = newGuesses
+                                , state = Playing emptyCombination
+                            }
+                                ! []
 
                 _ ->
                     model ! []
+
+        Cheat ->
+            let
+                _ =
+                    Debug.log "Answer" model.correct
+            in
+                model ! []
 
 
 updateCurrentGuess : Index -> Model -> Model
