@@ -50,6 +50,7 @@ type alias Combination =
 type Hint
     = CorrectPosition
     | WrongPosition
+    | Win
 
 
 type alias Guess =
@@ -249,6 +250,9 @@ renderHint hint =
         WrongPosition ->
             Icon.i "lock"
 
+        Win ->
+            Icon.i "lock_open"
+
 
 colorPicker : Model -> Grid.Cell Msg
 colorPicker model =
@@ -403,37 +407,30 @@ update msg model =
             -- TODO: Refactor this ugly mess
             case model.state of
                 Playing currentGuess ->
-                    let
-                        _ =
-                            Debug.log "Submitting guess for evaluation" currentGuess
+                    if currentGuess == model.correct then
+                        win currentGuess model
+                    else
+                        let
+                            _ =
+                                Debug.log "Submitting guess for evaluation" currentGuess
 
-                        win =
-                            currentGuess == model.correct
+                            keys =
+                                List.map2 (,) currentGuess model.correct
+                                    |> List.filter (\( a, b ) -> a == b)
+                                    |> List.length
 
-                        keys =
-                            List.map2 (,) currentGuess model.correct
-                                |> List.filter (\( a, b ) -> a == b)
-                                |> List.length
+                            locks =
+                                List.filter (\a -> List.member a model.correct) currentGuess
+                                    |> List.length
+                                    |> flip (-) keys
+                                    |> flip List.repeat WrongPosition
 
-                        locks =
-                            List.filter (\a -> List.member a model.correct) currentGuess
-                                |> List.length
-                                |> flip (-) keys
-                                |> flip List.repeat WrongPosition
+                            hint =
+                                List.append (List.repeat keys CorrectPosition) locks
 
-                        hint =
-                            List.append (List.repeat keys CorrectPosition) locks
-
-                        newGuesses =
-                            ( currentGuess, hint ) :: model.guesses
-                    in
-                        if win then
-                            { model
-                                | guesses = newGuesses
-                                , state = GameOver
-                            }
-                                ! []
-                        else
+                            newGuesses =
+                                ( currentGuess, hint ) :: model.guesses
+                        in
                             { model
                                 | guesses = newGuesses
                                 , state = Playing emptyCombination
@@ -449,6 +446,19 @@ update msg model =
                     Debug.log "Answer" model.correct
             in
                 model ! []
+
+
+win : Combination -> Model -> ( Model, Cmd Msg )
+win guess model =
+    let
+        guesses =
+            ( guess, [Win] ) :: model.guesses
+    in
+        { model
+            | guesses = guesses
+            , state = GameOver
+        }
+            ! []
 
 
 updateCurrentGuess : Index -> Model -> Model
