@@ -146,10 +146,7 @@ viewBody model =
             playBody current model
 
         GameOver ->
-            div []
-                [ text "YOU WIN!!"
-                , playBody emptyCombination model
-                ]
+            div [] [ playBody emptyCombination model ]
 
         _ ->
             text "I don't know any other states yet"
@@ -160,40 +157,33 @@ playBody current model =
     Grid.grid
         [ Options.css "display" "flex"
         , Options.css "flex-direction" "row"
-          -- , Options.css "justify-content" "center"
+        , Options.css "justify-content" "space-around"
         ]
         [ colorPicker model
         , guessField current model
-        , submitButton model
         ]
 
 
-submitButton : Model -> Grid.Cell Msg
+submitButton : Model -> Html Msg
 submitButton model =
     let
         mdlColor =
             Material.Color.color Material.Color.Green Material.Color.S500
     in
-        Grid.cell
-            [ Grid.size Grid.All 1
-            , Options.css "margin-left" "0px"
-              -- , Options.css "display" "flex"
-              -- , Options.css "justify-content" "space-around"
+        Button.render Mdl
+            [ 0 ]
+            model.mdl
+            [ Material.Color.background mdlColor
+            , Button.fab
+            , Button.ripple
+            , if not (validCurrentGuess model) then
+                Button.disabled
+              else
+                Elevation.e16
+            , Options.onClick SubmitGuess
+            , Options.css "margin" "0 0 35 35"
             ]
-            [ Button.render Mdl
-                [ 0 ]
-                model.mdl
-                [ Material.Color.background mdlColor
-                , Button.fab
-                , Button.ripple
-                , if not (validCurrentGuess model) then
-                    Button.disabled
-                  else
-                    Button.colored
-                , Options.onClick SubmitGuess
-                ]
-                [ Icon.i "swap_horiz" ]
-            ]
+            [ Icon.i "lock_outline" ]
 
 
 validCurrentGuess : Model -> Bool
@@ -224,7 +214,7 @@ guessField current model =
     in
         Grid.cell
             [ Grid.size Grid.All 6 ]
-            [ div [] <| currentGuess
+            [ div [] <| List.append currentGuess [ submitButton model ]
             , div [] <| pastGuesses
             ]
 
@@ -258,7 +248,7 @@ colorPicker : Model -> Grid.Cell Msg
 colorPicker model =
     Grid.cell
         [ Grid.size Grid.All 1
-        , Options.css "align-self" "flex-end"
+          -- , Options.css "align-self" "flex-end"
         ]
     <|
         List.indexedMap (peg Draggable model.hoverIndex) colors
@@ -280,10 +270,11 @@ peg pegType hoverIndex index color =
                     , Options.css "width" "9px"
                     , Options.css "border-radius" "1.5rem"
                     , Options.css "margin" "8"
+                    , Options.css "border" "3px solid grey"
                     , if index == hoverIndex then
-                        Elevation.e16
-                      else
                         Elevation.e2
+                      else
+                        Elevation.e8
                     , Elevation.transition 300
                     , Options.onMouseEnter (Raise index)
                     , Options.onMouseLeave (Raise -1)
@@ -295,6 +286,7 @@ peg pegType hoverIndex index color =
                     [ Options.attribute <| attribute "ondragover" "return false"
                     , onDrop (DroppedOn index)
                     , Material.Color.background mdlColor
+                    , Elevation.e4
                     , Options.css "height" "33px"
                     , Options.css "width" "9px"
                     , Options.css "border-radius" "1.5rem"
@@ -309,6 +301,7 @@ peg pegType hoverIndex index color =
                     , Options.css "width" "9px"
                     , Options.css "border-radius" "1.5rem"
                     , Options.css "margin" "8"
+                    , Elevation.e2
                     ]
                     []
 
@@ -452,7 +445,7 @@ win : Combination -> Model -> ( Model, Cmd Msg )
 win guess model =
     let
         guesses =
-            ( guess, [Win] ) :: model.guesses
+            ( guess, [ Win ] ) :: model.guesses
     in
         { model
             | guesses = guesses

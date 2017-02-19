@@ -10,7 +10,7 @@ app.on('ready', createWindow)
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 500,
+    width: 480,
     height: 768
   })
 
