@@ -183,7 +183,26 @@ submitButton model =
             , Options.onClick SubmitGuess
             , Options.css "margin" "0 0 35 35"
             ]
-            [ Icon.i "lock_outline" ]
+            [ Icon.i "compare_arrows" ]
+
+
+resetButton : Model -> Html Msg
+resetButton model =
+    let
+        mdlColor =
+            Material.Color.color Material.Color.Green Material.Color.S500
+    in
+        Button.render Mdl
+            [ 0 ]
+            model.mdl
+            [ Material.Color.background mdlColor
+            , Button.fab
+            , Button.ripple
+            , Elevation.e16
+            , Options.onClick Reset
+            , Options.css "margin" "0 0 35 35"
+            ]
+            [ Icon.i "restore" ]
 
 
 validCurrentGuess : Model -> Bool
@@ -211,10 +230,18 @@ guessField current model =
 
         pastGuesses =
             List.map renderPastGuess model.guesses
+
+        button =
+            case model.state of
+                GameOver ->
+                    resetButton model
+
+                _ ->
+                    submitButton model
     in
         Grid.cell
             [ Grid.size Grid.All 6 ]
-            [ div [] <| List.append currentGuess [ submitButton model ]
+            [ div [] <| List.append currentGuess [ button ]
             , div [] <| pastGuesses
             ]
 
@@ -235,21 +262,19 @@ renderHint : Hint -> Html Msg
 renderHint hint =
     case hint of
         CorrectPosition ->
-            Icon.i "vpn_key"
+            Icon.i "lock_open"
 
         WrongPosition ->
-            Icon.i "lock"
+            Icon.i "lock_outline"
 
         Win ->
-            Icon.i "lock_open"
+            Icon.i "vpn_key"
 
 
 colorPicker : Model -> Grid.Cell Msg
 colorPicker model =
     Grid.cell
-        [ Grid.size Grid.All 1
-          -- , Options.css "align-self" "flex-end"
-        ]
+        [ Grid.size Grid.All 1 ]
     <|
         List.indexedMap (peg Draggable model.hoverIndex) colors
 
@@ -349,6 +374,7 @@ type Msg
     | Raise Int
     | SubmitGuess
     | Cheat
+    | Reset
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -438,7 +464,10 @@ update msg model =
                 _ =
                     Debug.log "Answer" model.correct
             in
-                model ! []
+                { model | state = Playing model.correct } ! []
+
+        Reset ->
+            createModel
 
 
 win : Combination -> Model -> ( Model, Cmd Msg )
