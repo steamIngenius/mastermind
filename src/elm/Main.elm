@@ -265,7 +265,7 @@ renderHint hint =
             Icon.i "lock_open"
 
         WrongPosition ->
-            Icon.i "lock_outline"
+            Icon.i "lock"
 
         Win ->
             Icon.i "vpn_key"
@@ -423,38 +423,12 @@ update msg model =
                 updateCurrentGuess index model ! []
 
         SubmitGuess ->
-            -- TODO: Refactor this ugly mess
             case model.state of
                 Playing currentGuess ->
                     if currentGuess == model.correct then
-                        win currentGuess model
+                        win currentGuess model ! []
                     else
-                        let
-                            _ =
-                                Debug.log "Submitting guess for evaluation" currentGuess
-
-                            keys =
-                                List.map2 (,) currentGuess model.correct
-                                    |> List.filter (\( a, b ) -> a == b)
-                                    |> List.length
-
-                            locks =
-                                List.filter (\a -> List.member a model.correct) currentGuess
-                                    |> List.length
-                                    |> flip (-) keys
-                                    |> flip List.repeat WrongPosition
-
-                            hint =
-                                List.append (List.repeat keys CorrectPosition) locks
-
-                            newGuesses =
-                                ( currentGuess, hint ) :: model.guesses
-                        in
-                            { model
-                                | guesses = newGuesses
-                                , state = Playing emptyCombination
-                            }
-                                ! []
+                        submitGuess currentGuess model ! []
 
                 _ ->
                     model ! []
@@ -470,7 +444,37 @@ update msg model =
             createModel
 
 
-win : Combination -> Model -> ( Model, Cmd Msg )
+submitGuess : Combination -> Model -> Model
+submitGuess currentGuess model =
+    let
+        _ =
+            Debug.log "Submitting guess for evaluation" currentGuess
+
+        correctPositions =
+            List.map2 (,) currentGuess model.correct
+                |> List.filter (\( a, b ) -> a == b)
+                |> List.length
+                |> flip List.repeat CorrectPosition
+
+        wrongPositions =
+            List.filter (\a -> List.member a model.correct) currentGuess
+                |> List.length
+                |> flip (-) (List.length correctPositions)
+                |> flip List.repeat WrongPosition
+
+        hint =
+            List.append correctPositions wrongPositions
+
+        newGuesses =
+            ( currentGuess, hint ) :: model.guesses
+    in
+        { model
+            | guesses = newGuesses
+            , state = Playing emptyCombination
+        }
+
+
+win : Combination -> Model -> Model
 win guess model =
     let
         guesses =
@@ -480,7 +484,6 @@ win guess model =
             | guesses = guesses
             , state = GameOver
         }
-            ! []
 
 
 updateCurrentGuess : Index -> Model -> Model
