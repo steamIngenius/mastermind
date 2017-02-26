@@ -1,6 +1,6 @@
 module Main exposing (..)
 
-import Html exposing (Html, Attribute, text, div, h1, br)
+import Html exposing (Html, Attribute, text, div, h1, br, span)
 import Html.Attributes exposing (style, attribute, draggable)
 import Html.Events exposing (onWithOptions, onClick)
 import Http
@@ -15,6 +15,7 @@ import Material.Chip as Chip
 import Material.Menu as Menu
 import Material.Grid as Grid
 import Material.Button as Button
+import Material.Toggles as Toggles
 import Material.Icon as Icon
 import Material.Elevation as Elevation
 import Material.Layout as Layout
@@ -126,7 +127,7 @@ view model =
             model.mdl
             [ Layout.fixedHeader ]
             { header = [ header ]
-            , drawer = []
+            , drawer = [ instructions model ]
             , tabs = ( [], [] )
             , main = [ viewBody model ]
             }
@@ -134,8 +135,70 @@ view model =
 
 header : Html Msg
 header =
-    div [ style [ ( "padding", "1rem" ), ( "text-align", "center" ) ] ]
-        [ h1 [ onClick Cheat ] [ text "mastermind" ]
+    div
+        [ style
+            [ ( "display", "flex" )
+            , ( "flex-flow", "column wrap" )
+            , ( "align-items", "center" )
+            ]
+        ]
+        [ h1
+            [ onClick Cheat
+            , style [ ( "margin-bottom", "0" ) ]
+            ]
+            [ text "mastermind" ]
+        , div
+            []
+            [ span []
+                [ Icon.i "lock"
+                , text " = right color, wrong position"
+                ]
+            , span []
+                [ Icon.i "lock_open"
+                , text " = right color, right position"
+                ]
+            ]
+        ]
+
+
+instructions : Model -> Html Msg
+instructions model =
+    div
+        [ style
+            [ ( "display", "flex" )
+            , ( "flex-direction", "column" )
+            ]
+        ]
+        [ text "Drag the colored 'pegs' from the left to create a pattern."
+        , div []
+            [ Icon.i "lock"
+            , text " = right color, wrong position"
+            ]
+        , div []
+            [ Icon.i "lock_open"
+            , text " = right color, right position"
+            ]
+        , div
+            []
+            [ Toggles.radio Mdl
+                [ 0 ]
+                model.mdl
+                [ Toggles.value True
+                , Toggles.group "MyRadioGroup"
+                , Toggles.ripple
+                , Options.onToggle NoOp
+                ]
+                [ text "Online Mode" ]
+            , Toggles.radio Mdl
+                [ 1 ]
+                model.mdl
+                [ Toggles.value False
+                , Toggles.group "MyRadioGroup"
+                , Toggles.ripple
+                , Options.onToggle NoOp
+                ]
+                [ text "Offline Mode" ]
+            ]
         ]
 
 
@@ -202,7 +265,7 @@ resetButton model =
             , Options.onClick Reset
             , Options.css "margin" "0 0 35 35"
             ]
-            [ Icon.i "restore" ]
+            [ Icon.i "replay" ]
 
 
 validCurrentGuess : Model -> Bool
