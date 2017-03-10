@@ -1,8 +1,8 @@
 module Main exposing (..)
 
-import Html exposing (Html, Attribute, text, div, h1, br, span)
+import Html exposing (Html, Attribute, text, div, h1, span)
 import Html.Attributes exposing (style, attribute, draggable)
-import Html.Events exposing (onWithOptions, onClick)
+import Html.Events exposing (onClick)
 import Http
 import Json.Decode as Decode
 import Task
@@ -27,7 +27,7 @@ main =
         { init = createModel
         , view = view
         , update = update
-        , subscriptions = (\_ -> Sub.none)
+        , subscriptions = \_ -> Sub.none
         }
 
 
